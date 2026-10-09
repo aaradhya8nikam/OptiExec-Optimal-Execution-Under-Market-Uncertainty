@@ -1,123 +1,236 @@
-# Optimal Execution Engine (Almgren–Chriss Framework)
+# OptiExec — Optimal Execution Under Market-Impact Uncertainty
 
-A quantitative finance execution framework and research simulation platform designed to solve the institutional large order execution problem: **minimizing market impact and timing volatility risk**.
+**A quantitative finance engine for optimizing large-order execution using the Almgren–Chriss framework, stochastic simulation, and risk-aware optimization.**
 
----
+OptiExec addresses a fundamental problem in institutional trading: how should a large buy or sell order be executed over time to minimize transaction costs while controlling price volatility risk?
 
-## Project Architecture & File Hierarchy
+Executing an order too aggressively can increase market impact and liquidity costs, while executing too slowly exposes the trader to adverse price movements. OptiExec models this trade-off, generates optimized execution schedules, and evaluates their performance against established benchmark strategies.
 
-```
-TRADING Project/
-├── config.py                         # Enums and dataclasses (OrderConfig, MarketParameters, ExecutionSchedule)
-├── requirements.txt                  # Python dependencies
-├── run_dashboard.py                  # One-click Streamlit dashboard launcher
+## Key Features
+
+* **Optimal Execution:** Analytical and numerical optimization using the Almgren–Chriss framework.
+* **Benchmark Strategies:** Compare Immediate Execution, Time-Weighted Average Price (TWAP), and Volume-Weighted Average Price (VWAP).
+* **Market Analytics:** Estimate volatility, average daily volume (ADV), participation rates, liquidity, and intraday volume profiles.
+* **Market Impact Modeling:** Support temporary and permanent market impact using linear and power-law models.
+* **Monte Carlo Simulation:** Evaluate execution strategies across stochastic price paths and analyze execution-cost distributions, Value at Risk (VaR), and Conditional Value at Risk (CVaR).
+* **Cost–Risk Efficient Frontier:** Analyze the trade-off between expected execution costs and execution risk under different risk-aversion levels.
+* **Robustness Analysis:** Stress-test strategies under uncertain volatility and market-impact estimates.
+* **Dynamic Re-optimization:** Adapt execution schedules when market volatility or liquidity changes.
+* **Interactive Dashboard:** Visualize execution trajectories, market conditions, simulation outcomes, and strategy comparisons.
+* **ML-Based Calibration:** Experiment with Ridge regression to estimate market-impact parameters from market features.
+
+## Project Architecture
+
+```text
+OptiExec/
+├── config.py
+├── requirements.txt
+├── run_server.py
+├── run_dashboard.py
+├── quickstart_demo.py
 ├── data/
-│   ├── __init__.py
-│   ├── market_data.py                # OHLCV data loader, synthetic generator, U-shape intraday volume profile
-│   └── sample_data_generator.py      # Pre-caching scripts for sample equities
+│   ├── market_data.py
+│   └── sample_data_generator.py
 ├── analytics/
-│   ├── __init__.py
-│   ├── returns_volatility.py         # Parkinson, Garman-Klass, Close-to-Close & rolling volatility estimators
-│   └── liquidity_volume.py           # ADV, Order-to-ADV, participation rate, and bid-ask spread analytics
+│   ├── returns_volatility.py
+│   └── liquidity_volume.py
 ├── models/
-│   ├── __init__.py
-│   ├── market_impact.py              # Almgren-Chriss linear & power-law temporary/permanent impact models
-│   ├── price_process.py              # Stochastic Brownian motion price simulator (ABM & GBM)
-│   └── ml_impact.py                  # Machine learning / Ridge impact parameter calibration
+│   ├── market_impact.py
+│   ├── price_process.py
+│   └── ml_impact.py
 ├── strategies/
-│   ├── __init__.py
-│   ├── base.py                       # Base strategy class with theoretical cost/variance metrics
-│   ├── immediate.py                  # Immediate Execution benchmark (100% at t=0)
-│   ├── twap.py                       # Time-Weighted Average Price (uniform slicing)
-│   ├── vwap.py                       # Volume-Weighted Average Price (U-curve volume matching)
-│   └── almgren_chriss.py             # Almgren-Chriss closed-form analytical & numerical QP solvers
+│   ├── base.py
+│   ├── immediate.py
+│   ├── twap.py
+│   ├── vwap.py
+│   └── almgren_chriss.py
 ├── simulation/
-│   ├── __init__.py
-│   ├── execution_simulator.py        # Path-by-path trade logger with realized slippage & impact
-│   └── monte_carlo.py                # Vectorized multi-path Monte Carlo engine (VaR 95%, CVaR)
+│   ├── execution_simulator.py
+│   └── monte_carlo.py
 ├── evaluation/
-│   ├── __init__.py
-│   ├── metrics.py                    # Implementation Shortfall ($ and bps), efficiency ratios
-│   ├── efficient_frontier.py         # Continuous Cost vs Risk Efficient Frontier generator
-│   └── robustness.py                 # Parameter uncertainty & model misspecification stress-test
+│   ├── metrics.py
+│   ├── efficient_frontier.py
+│   └── robustness.py
 ├── dynamic/
-│   ├── __init__.py
-│   └── rebalancer.py                 # Dynamic adaptive re-optimization for intraday volatility/liquidity shocks
+│   └── rebalancer.py
 ├── dashboard/
-│   ├── __init__.py
-│   ├── app.py                        # Master Streamlit quantitative dashboard
+│   ├── app.py
 │   └── components/
-│       ├── __init__.py
-│       ├── order_input.py            # Sidebar controls & parameter inputs
-│       ├── market_analytics.py       # Candlestick chart & volatility estimators breakdown
-│       ├── trajectory_view.py        # Inventory trajectory & interval trade slices view
-│       ├── monte_carlo_view.py       # Stochastic price paths & shortfall distribution view
-│       ├── efficient_frontier_view.py# Cost-Risk Efficient Frontier interactive plot
-│       ├── robustness_view.py        # Parameter uncertainty & stress-test view
-│       └── dynamic_exec_view.py      # Mid-trade shock & adaptive rebalancer view
 └── tests/
-    ├── __init__.py
-    ├── test_analytics.py             # Tests for returns, volatility, and volume curves
-    ├── test_market_impact.py         # Tests for impact formulas & ML estimator
-    ├── test_strategies.py            # Tests for Immediate, TWAP, and VWAP
-    ├── test_almgren_chriss.py        # Tests for hyperbolic solver, limits, and QP agreement
-    └── test_simulation.py            # Tests for simulator, Monte Carlo, and dynamic rebalancing
 ```
 
----
+*The tree highlights the main modules. Refer to the repository for the complete file hierarchy and implementation.*
 
-## Mathematical Foundations
+## Mathematical Framework
 
-### 1. Market Price Dynamics with Permanent Impact
-$$S_k = S_{k-1} + \sigma \sqrt{\tau} \xi_k - \text{sign}(\text{side}) \cdot \gamma n_k$$
-where $\xi_k \sim \mathcal{N}(0, 1)$ is exogenous price innovation, $\tau = T / N$, and $\gamma$ is permanent price impact.
+### 1. Execution Objective
 
-### 2. Execution Price with Temporary Impact & Half-Spread
-$$\tilde{S}_k = S_{k-1} + \text{sign}(\text{side}) \left( \eta \frac{n_k}{\tau} + \frac{1}{2}\text{Spread} \right)$$
+The Almgren–Chriss framework balances expected execution costs against the risk of holding an unexecuted position.
 
-### 3. Almgren-Chriss (2000) Optimization Objective
-$$\min_{\{x_k\}} U(x) = \mathbb{E}[x] + \lambda \mathbb{V}[x]$$
-where:
-$$\mathbb{E}[x] = \frac{1}{2}\gamma X^2 + \frac{\eta}{\tau}\sum_{k=1}^N n_k^2 + \frac{1}{2}\text{Spread} \cdot X$$
-$$\mathbb{V}[x] = \sigma^2 \tau \sum_{k=1}^N x_k^2$$
+$$
+\min_x \left(
+\mathbb{E}[C] + \lambda\operatorname{Var}(C)
+\right)
+$$
 
-### 4. Closed-Form Analytical Trajectory
-$$x_j = \frac{\sinh(\kappa (T - t_j))}{\sinh(\kappa T)} X \quad \text{for } j=0, 1, \dots, N$$
-where the urgency parameter $\kappa$ satisfies:
-$$\cosh(\kappa \tau) = 1 + \frac{\lambda \sigma^2 \tau^2}{2 \eta}$$
-- As $\lambda \to 0$ (risk-neutral): $x_j \to X(1 - j/N)$ (**TWAP**).
-- As $\lambda \to \infty$ (risk-averse): order is front-loaded into early intervals.
+Where:
 
----
+* \(C\): total execution cost relative to the decision price.
+* \(\lambda\): risk-aversion parameter.
+* \(X\): initial order quantity.
+* \(x_k\): remaining inventory after interval \(k\).
+* \(\sigma\): price volatility.
+* \(\eta\): temporary market-impact coefficient.
+* \(\gamma\): permanent market-impact coefficient.
 
-## How to Run
+### 2. Price Dynamics
 
-### 1. Launch the Modern Web Application (FastAPI + Modern Web Frontend)
+A simplified arithmetic Brownian motion model with permanent market impact is:
+
+$$
+S_k=S_{k-1}+\sigma\sqrt{\tau}\xi_k-\gamma n_k
+$$
+
+Here, \(\xi_k\sim\mathcal{N}(0,1)\), \(\tau\) is the interval duration, and \(n_k\) is the signed trade quantity under the chosen impact convention.
+
+### 3. Execution Price
+
+For a buy order, a simplified execution-price model is:
+
+$$
+\widetilde S_k=S_{k-1}
++\eta\frac{n_k}{\tau}
++\frac{\text{Spread}}{2}
+$$
+
+The model accounts for temporary market impact and half the bid–ask spread. Sell orders require consistent trade-direction and impact sign conventions.
+
+### 4. Optimal Inventory Trajectory
+
+Under the standard continuous-time Almgren–Chriss assumptions, the remaining inventory follows:
+
+$$
+x(t)=X\frac{\sinh(\kappa(T-t))}
+{\sinh(\kappa T)}
+$$
+
+where
+
+$$
+\kappa=\sqrt{\frac{\lambda\sigma^2}{\eta}}
+$$
+
+for the corresponding continuous-time linear-impact formulation.
+
+The trajectory determines how much inventory remains at each point during execution. Greater risk aversion generally leads to faster execution, while lower risk aversion favors spreading trades over a longer horizon.
+
+*Discrete-time implementations must use equations consistent with their time-step and impact-coefficient conventions.*
+
+## Research Objective
+
+**Research question:** How robust is an optimal execution strategy when volatility, liquidity, and market-impact parameters are estimated imperfectly?
+
+OptiExec investigates this question by comparing optimized execution against TWAP and VWAP under different market conditions and parameter-misspecification scenarios.
+
+The evaluation examines:
+
+* Expected implementation shortfall.
+* Execution-cost variance and tail risk.
+* Performance under volatility and market-impact estimation errors.
+* Sensitivity to order size, execution horizon, and risk aversion.
+* The effect of changing market conditions on execution decisions.
+
+The objective is to determine when model-based optimization provides meaningful benefits and when simpler benchmark strategies may be more robust.
+
+## Technology Stack
+
+| Technology   | Purpose                                 |
+| ------------ | --------------------------------------- |
+| Python       | Core implementation                     |
+| NumPy        | Numerical computation and simulation    |
+| Pandas       | Market-data processing                  |
+| SciPy        | Numerical optimization                  |
+| Streamlit    | Interactive dashboard                   |
+| Plotly       | Interactive financial visualizations    |
+| FastAPI      | REST API, if enabled                    |
+| scikit-learn | Ridge regression for impact calibration |
+| Pytest       | Automated testing                       |
+
+## Getting Started
+
+### 1. Clone the Repository
+
 ```bash
-python run_server.py
+git clone <your-repository-url>
+cd OptiExec
 ```
-- **Web UI:** [http://localhost:8000](http://localhost:8000)
-- **Interactive Swagger REST API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **OpenAPI JSON Schema:** [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
 
-### 2. Run the Full Automated Test Suite (24 Tests)
+### 2. Create a Virtual Environment
+
 ```bash
-python -m pytest -v
+python -m venv .venv
 ```
 
-### 3. Run the Quickstart Terminal Demo
+Activate it on Windows:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Run the Quickstart Demo
+
 ```bash
 python quickstart_demo.py
 ```
 
-### 4. Optional Streamlit Dashboard
+### 5. Launch the API Server
+
+```bash
+python run_server.py
+```
+
+If the FastAPI server is configured to use port 8000, access:
+
+* Web application: http://localhost:8000
+* API documentation: http://localhost:8000/docs
+* OpenAPI schema: http://localhost:8000/openapi.json
+
+### 6. Launch the Streamlit Dashboard
+
+In a separate terminal:
+
 ```bash
 python run_dashboard.py
 ```
 
----
+### 7. Run the Test Suite
 
-## Core Research Finding
-**Hypothesis:** *How robust is an optimal execution strategy when volatility, liquidity, and market-impact parameters are estimated imperfectly?*
+```bash
+python -m pytest -v
+```
 
-**Result:** The Almgren-Chriss optimal trajectory maintains superior or competitive risk-adjusted cost efficiency over benchmark TWAP and VWAP across misspecified volatility ($\pm 50\%$) and market impact ($0.5\times$ to $3.0\times$) regimes. By front-loading volume according to the trader's risk tolerance $\lambda$, it limits severe tail losses ($\text{VaR}_{95\%}$) during adverse price drift.
+The commands assume the corresponding scripts and dependencies are present in the repository.
+
+## Project Status
+
+OptiExec is a quantitative research and simulation project. Its purpose is to investigate execution strategies through mathematical modeling, numerical optimization, and controlled simulation—not to predict stock prices or guarantee profitable trades.
+
+Results should be reported only after running the experiments and validating the implementation. Simulated performance does not establish real-market profitability, and any conclusions depend on the accuracy of the market-impact assumptions and data.
+
+## Future Enhancements
+
+* Calibrate market-impact models using historical execution data.
+* Incorporate realistic intraday volume and liquidity profiles.
+* Evaluate performance across different market regimes.
+* Improve adaptive re-optimization under market shocks.
+* Extend the framework to multiple assets and portfolio-level execution.
+
+## Disclaimer
+
+OptiExec is intended for educational and quantitative research purposes. It is not investment advice and does not execute live trades by default.
