@@ -1,10 +1,10 @@
-# ⚡ Optimal Execution Engine (Almgren–Chriss Framework)
+# Optimal Execution Engine (Almgren–Chriss Framework)
 
 A quantitative finance execution framework and research simulation platform designed to solve the institutional large order execution problem: **minimizing market impact and timing volatility risk**.
 
 ---
 
-## 🏛️ Project Architecture & File Hierarchy
+## Project Architecture & File Hierarchy
 
 ```
 TRADING Project/
@@ -66,7 +66,7 @@ TRADING Project/
 
 ---
 
-## 🧮 Mathematical Foundations
+## Mathematical Foundations
 
 ### 1. Market Price Dynamics with Permanent Impact
 $$S_k = S_{k-1} + \sigma \sqrt{\tau} \xi_k - \text{sign}(\text{side}) \cdot \gamma n_k$$
@@ -90,7 +90,7 @@ $$\cosh(\kappa \tau) = 1 + \frac{\lambda \sigma^2 \tau^2}{2 \eta}$$
 
 ---
 
-## 🚀 How to Run
+## How to Run
 
 ### 1. Launch the Modern Web Application (FastAPI + Modern Web Frontend)
 ```bash
@@ -117,7 +117,7 @@ python run_dashboard.py
 
 ---
 
-## 🔬 Core Research Finding
+## Core Research Finding
 **Hypothesis:** *How robust is an optimal execution strategy when volatility, liquidity, and market-impact parameters are estimated imperfectly?*
 
 **Result:** The Almgren-Chriss optimal trajectory maintains superior or competitive risk-adjusted cost efficiency over benchmark TWAP and VWAP across misspecified volatility ($\pm 50\%$) and market impact ($0.5\times$ to $3.0\times$) regimes. By front-loading volume according to the trader's risk tolerance $\lambda$, it limits severe tail losses ($\text{VaR}_{95\%}$) during adverse price drift.
